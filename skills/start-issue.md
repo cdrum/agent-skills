@@ -1,6 +1,6 @@
 ---
 name: start-issue
-description: Start work on a Linear issue — verifies the issue exists and creates a prefixed git branch.
+description: Start work on a Linear issue — verifies the issue exists, assigns it to you, moves it to In Progress, and creates a correctly prefixed git branch off the repo's default branch.
 ---
 
 # Start a Linear Issue
@@ -9,106 +9,112 @@ description: Start work on a Linear issue — verifies the issue exists and crea
 
 `/start-issue <linear-issue-id>`
 
-Example: `/start-issue DMP-1234`
+Examples: `/start-issue WW-342`, `/start-issue OF-91`
 
-## Instructions
+---
 
-### 1. Fetch and verify the issue
-
-Use the Linear MCP to retrieve the issue:
+## Step 1 — Fetch and verify the issue
 
 ```
-mcp__claude_ai_Linear__get_issue  { "id": "<ISSUE_ID>" }
+mcp__claude_ai_Linear__get_issue  { "id": "<ISSUE_ID>", "includeRelations": true }
 ```
 
 If the issue is not found, stop and tell the user.
 
-### 1a. Assign the issue to yourself and move it to In Progress
+Note the `team`, `state`, `assignee`, `labels`, and `gitBranchName` from the response. `includeRelations` returns `blockedBy` — if the issue is blocked by an issue that is not yet Done, say so and ask whether to start it anyway before doing anything else.
 
-Fetch the currently authenticated Linear user:
+---
 
-```
-mcp__claude_ai_Linear__get_viewer  {}
-```
+## Step 2 — Assign it to yourself and move it to In Progress
 
-**Assignee:** If the issue's `assignee.id` is missing or does not match the viewer's `id`, assign the issue to yourself:
+Both are a single `save_issue` call. `assignee` accepts the literal string `"me"`, and `state` accepts a status **name**, so there is no need to look up a user ID or a workflow state ID:
 
 ```
-mcp__claude_ai_Linear__update_issue  { "id": "<ISSUE_ID>", "assigneeId": "<VIEWER_ID>" }
+mcp__claude_ai_Linear__save_issue  { "id": "<ISSUE_ID>", "assignee": "me", "state": "In Progress" }
 ```
 
-Tell the user if you assigned it (e.g. "Assigned to you."). If already assigned to you, say nothing.
+Only send the fields that actually need changing:
 
-**Status:** If the issue's `state.name` is not already `"In Progress"`, fetch the team's workflow states to get the correct state ID:
+- If the issue is already assigned to you, omit `assignee` and say nothing.
+- If it is already In Progress, omit `state` and say nothing.
+- If both are already correct, skip the call entirely.
+
+Report only what you changed (e.g. "Assigned to you, moved to In Progress.").
+
+If `state: "In Progress"` is rejected, the team's status is named something else — list the team's statuses and pick the one whose type is `started`:
 
 ```
-mcp__claude_ai_Linear__get_workflow_states  { "teamId": "<TEAM_ID>" }
+mcp__claude_ai_Linear__list_issue_statuses  { "team": "<TEAM_KEY>" }
 ```
 
-Find the state whose `name` is `"In Progress"` and update the issue:
+---
 
-```
-mcp__claude_ai_Linear__update_issue  { "id": "<ISSUE_ID>", "stateId": "<IN_PROGRESS_STATE_ID>" }
-```
+## Step 3 — Determine the branch type prefix
 
-Tell the user if you moved it (e.g. "Status set to In Progress."). If it was already In Progress, say nothing.
+Read the issue's labels and map to a prefix. Match case-insensitively on the label name, so both plain (`Bug`, `Feature`) and namespaced (`type:feature`, `type:chore`, `type:setup`) taxonomies resolve:
 
-### 2. Determine the branch type prefix
-
-Check the labels on the issue and map to a prefix:
-
-| Label | Prefix |
+| Label contains | Prefix |
 |---|---|
-| `Bug` | `bugfix/` |
-| `Feature` | `feature/` |
-| `Hotfix` | `hotfix/` |
+| `bug` | `fix/` |
+| `feature` | `feature/` |
+| `chore` or `setup` | `chore/` |
+| `hotfix` | `hotfix/` |
 
-- **Exactly one match** → use it, no need to ask
-- **Multiple matches or no match** → ask the user to choose one of: `feature`, `bugfix`, `hotfix`, `release`
+- **Exactly one match** → use it, do not ask.
+- **No match or several** → ask the user to choose one of `feature`, `fix`, `chore`, `hotfix`. Do not accept another answer.
 
-Do not accept any other answer.
-
-**Missing label:** If no matching label was found on the issue (i.e. you had to ask the user), apply the corresponding label after the user answers. Map the chosen type back to its label name (`feature` → `Feature`, `bugfix` → `Bug`, `hotfix` → `Hotfix`), fetch the team's labels to get the label ID, then add it:
-
-```
-mcp__claude_ai_Linear__get_labels  { "teamId": "<TEAM_ID>" }
-```
+**Missing label:** if you had to ask, apply the matching label after the user answers. Look up the team's labels to find the exact name in use:
 
 ```
-mcp__claude_ai_Linear__update_issue  { "id": "<ISSUE_ID>", "labelIds": [<EXISTING_LABEL_IDS..., "<NEW_LABEL_ID>"] }
+mcp__claude_ai_Linear__list_issue_labels  { "team": "<TEAM_KEY>" }
 ```
 
-Preserve any labels already on the issue. Tell the user (e.g. "Added label Feature.").
+Then save it. **`labels` replaces the entire label set**, so send the issue's existing label names plus the new one — sending only the new name silently drops the others:
 
-### 3. Sync the base branch and create the branch
+```
+mcp__claude_ai_Linear__save_issue  { "id": "<ISSUE_ID>", "labels": ["<existing>", "...", "<new>"] }
+```
 
-Determine the correct base branch for the current repo:
+Tell the user which label you added.
 
-| Repo | Base branch |
-|------|-------------|
-| `dmp` | `dev` |
-| `admin` | `dev` |
-| `altpe` | `develop` |
+---
 
-If the current repo is not listed above, default to `dev`. If you are unsure which repo you are in, ask the user: **"Which base branch should I branch from? (dev / develop / main)"**
+## Step 4 — Sync the base branch and create the branch
 
-Switch to the base branch and pull the latest changes:
+Derive the default branch from the remote rather than assuming one:
+
+```bash
+git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||'
+```
+
+If that prints nothing (the ref is not set locally), run `git remote show origin | sed -n 's/.*HEAD branch: //p'`. If it still cannot be resolved, ask the user which branch to base off. Do not fall back to a guess.
+
+Check out and update it:
 
 ```bash
 git checkout <base-branch> && git pull origin <base-branch>
 ```
 
-If this fails, report the error and stop.
+If either command fails, report the error and stop.
 
-Then create the new branch from the updated base branch. Strip any `username/` prefix from the Linear-suggested `branchName`, then prepend the chosen prefix:
+Then build the branch name from the Linear `gitBranchName`, **stripping the leading `<username>/` segment Linear adds**, and prepend the prefix from Step 3:
 
 ```
-feature/dmp-1234-my-issue-title
-bugfix/fe-456-broken-export-flow
+feature/ww-342-venue-typeahead-and-premium-upsell
+fix/of-91-arrow-key-navigation-in-dropdowns
 ```
 
 ```bash
 git checkout -b <branch-name>
 ```
+
+Repo conventions this matches:
+
+| Repo | Convention |
+|---|---|
+| `wendways` | `<type>/ww-<n>-<slug>` with `<type>` from the issue's `type:` label — `CLAUDE.md` says to ignore Linear's suggested `<username>/…` form |
+| `otterfin`, `otterfin-cloud` | `feature/`, `fix/`, or `plugin/` plus the issue id — see `AGENTS.md` § Git & PR Conventions |
+
+If the repo's own `CLAUDE.md` or `AGENTS.md` states a different convention, that file wins over this table.
 
 Confirm the branch was created.

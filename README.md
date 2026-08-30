@@ -12,9 +12,17 @@ Claude Code lets you define custom `/slash-commands` as markdown files. Drop a `
 
 | Command | Description |
 |---|---|
+| `/start-issue` | Start work on a Linear issue — assigns it to you, moves it to In Progress, and creates a correctly prefixed branch off the repo's default branch |
 | `/commit` | Commit completed work into Git at a logical milestone, with a conventional commit message, a `CHANGELOG.md` entry, and optional Linear task reference |
-| `/start-issue` | Start work on a Linear issue — verifies the issue exists and creates a prefixed git branch |
-| `/humanize` | Remove AI writing patterns from a file and rewrite it to sound authentically human — fixes overused vocabulary, structural clichés, hollow transitions, and puffery |
+| `/validate-fe` | Validate front-end changes in a real Chrome tab — walks the affected routes and checks console errors, light and dark rendering, and the behavior that changed |
+| `/raise-pr` | Raise a GitHub PR from the current branch — pre-flight checks, changelog check, push if needed, then a PR against the repo's default branch |
+| `/review-pr` | Review a GitHub PR — checks out the branch, then covers security, tests, performance, migrations, and conventions |
+| `/review-pr-wt` | The same review in a dedicated git worktree, leaving your current branch and uncommitted work untouched, then cleans the worktree up |
+| `/submit-pr-review` | Submit the review you just produced to the PR — one review, inline-anchored comments, a verdict GitHub will accept, then restores the local checkout |
+| `/draft-release` | Draft public-facing release notes for an OtterFin version — an Updates post for the website plus a GitHub release body |
+| `/humanize` | Remove AI writing patterns from a file and rewrite it to sound authentically human |
+
+Skills assume the projects they were written against: Wendways (`Wendways/wendways`) and OtterFin (`OtterFin-ai/otterfin`, `OtterFin-ai/otterfin-cloud`). They read each repo's own `CLAUDE.md` / `AGENTS.md` and treat it as authoritative where the two disagree.
 
 ## Installation
 

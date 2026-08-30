@@ -1,6 +1,6 @@
 ---
 name: raise-pr
-description: Raise a GitHub pull request from the current branch — checks for uncommitted changes, syncs with remote, then creates a PR with a contextual title and engineer-focused description.
+description: Raise a GitHub pull request from the current branch — checks for uncommitted changes and a CHANGELOG entry, syncs with remote, then creates a PR against the repo's default branch with a contextual title and engineer-focused description.
 ---
 
 # Raise a Pull Request
@@ -10,6 +10,20 @@ description: Raise a GitHub pull request from the current branch — checks for 
 `/raise-pr`
 
 Raises a pull request for the current branch against the default base branch. Works through pre-flight checks, pushes if needed, then creates the PR on GitHub.
+
+---
+
+## Step 0 — Resolve the base branch
+
+Derive the repo's default branch from the remote rather than assuming one:
+
+```bash
+git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||'
+```
+
+If that prints nothing (the ref is not set locally), fall back to `git remote show origin | sed -n 's/.*HEAD branch: //p'`. If it still cannot be resolved, ask the user which branch to target — do not guess.
+
+Every personal repo (`wendways`, `otterfin`, `otterfin-cloud`, and the site/docs repos) uses `main`. Refer to the resolved value as `<base>` everywhere below and never hardcode it, so this skill keeps working in a repo that bases off `dev` or `develop`.
 
 ---
 
@@ -37,24 +51,26 @@ If the working tree is clean, move straight to Step 1b.
 
 ---
 
-## Step 1b — Check for a changelog fragment
+## Step 1b — Check the changelog covers this branch
 
-Derive the branch slug by stripping the type prefix from the branch name (e.g. `feature/of-1234-slug` → `of-1234-slug`).
+Both Wendways and OtterFin keep a single `CHANGELOG.md` at the repo root in Keep a Changelog format, and both require an entry for any user-visible or developer-relevant change (OtterFin states this in `AGENTS.md` § Git & PR Conventions). If there is no `CHANGELOG.md` at the repo root, skip this step silently.
 
-Check whether a changelog fragment exists for this branch:
+Check whether this branch touched it:
 
 ```bash
-ls changelogs/{slug}.md 2>/dev/null
+git diff --stat $(git merge-base HEAD origin/<base>)..HEAD -- CHANGELOG.md
 ```
 
-If the file **does not exist**, stop and tell the user:
+If the diff is empty, stop and tell the user:
 
-> "No changelog fragment found (`changelogs/{slug}.md` is missing). Run `/generate-changelog` to create one, or confirm you want to skip the changelog for this PR."
+> "This branch adds no `CHANGELOG.md` entry. Add one (`/commit` writes it), or confirm you want to raise the PR without it."
 
-- If the user says **skip / yes / y** → proceed to Step 2.
-- If the user says **no / stop** → stop here.
+- **skip / yes** → proceed to Step 2.
+- **no / stop** → stop here.
 
-If the file **exists**, proceed to Step 2 silently. If no `changelogs/` directory exists in the repo root, skip this check silently.
+Do not write the entry yourself here — this skill raises PRs, it does not author changelog copy.
+
+If the branch does touch `CHANGELOG.md`, read the added lines and check they sit under `## [Unreleased]`, name the branch's Linear issue id (`WW-…` / `OF-…`), and read as finished prose rather than a placeholder. Mention any of that in passing; do not block on it.
 
 ---
 
@@ -103,19 +119,19 @@ Extract the issue ID (e.g. `OF-1234`, `WW-456`) if present. You will need it for
 
 Fetch the commits on this branch that are not on the base branch:
 ```bash
-git log --oneline $(git merge-base HEAD origin/main)..HEAD
+git log --oneline $(git merge-base HEAD origin/<base>)..HEAD
 ```
 
-If `origin/main` doesn't exist, try `origin/master` or the tracked upstream. Use the full commit messages (not just `--oneline`) to understand the work done:
+Use the full commit messages (not just `--oneline`) to understand the work done:
 ```bash
-git log --format="%s%n%b" $(git merge-base HEAD origin/main)..HEAD
+git log --format="%s%n%b" $(git merge-base HEAD origin/<base>)..HEAD
 ```
 
 ### Diff summary
 
 Get a high-level sense of the files changed:
 ```bash
-git diff --stat $(git merge-base HEAD origin/main)..HEAD
+git diff --stat $(git merge-base HEAD origin/<base>)..HEAD
 ```
 
 ---
@@ -179,7 +195,7 @@ Populate each section from the commit messages, diff, and any context available.
 
 ## Step 6 — Create the PR
 
-The base branch is `dev`.
+Use the base branch resolved in Step 0.
 
 Prefer the GitHub MCP if available. Fall back to `gh` CLI if the MCP call fails.
 
@@ -192,7 +208,7 @@ mcp__plugin_github_github__create_pull_request {
   "title": "<composed title>",
   "body": "<composed description>",
   "head": "<current-branch>",
-  "base": "dev"
+  "base": "<base>"
 }
 ```
 
@@ -202,7 +218,7 @@ mcp__plugin_github_github__create_pull_request {
 gh pr create \
   --title "<composed title>" \
   --body "<composed description>" \
-  --base dev \
+  --base <base> \
   --head <current-branch>
 ```
 

@@ -1,19 +1,23 @@
 ---
-name: review-pr
-description: Review a GitHub pull request — checks out the branch, then performs an opinionated review covering security, tests, performance, conventions, and stack-specific best practices.
+name: review-pr-wt
+description: Review a GitHub pull request inside a dedicated git worktree — leaves your current branch and uncommitted work untouched, performs an opinionated review covering security, tests, performance, and conventions, then cleans the worktree up.
 ---
 
-# Review a Pull Request
+# Review a Pull Request (in a Worktree)
+
+The worktree variant of `/review-pr`. It reviews the PR in a **dedicated git worktree** instead of checking the branch out over your current working tree, so in-progress work is never disturbed. Use it when you have a branch mid-flight (the normal state in these repos) or want to review several PRs side by side.
+
+> Steps 4-6 are deliberately identical to `/review-pr`. If you change the review criteria in one file, change them in the other.
 
 ## Usage
 
-`/review-pr [<github-pr-url> | <repo> <pr-number> | <pr-number>]`
+`/review-pr-wt [<github-pr-url> | <repo> <pr-number> | <pr-number>]`
 
 Examples:
-- `/review-pr https://github.com/OtterFin-ai/otterfin/pull/42`
-- `/review-pr wendways 81` (repo name + PR number)
-- `/review-pr 81` (PR number only — uses the current repo)
-- `/review-pr` (interactive — prompts for repo then shows open PRs)
+- `/review-pr-wt https://github.com/OtterFin-ai/otterfin/pull/27`
+- `/review-pr-wt wendways 81` (repo name + PR number)
+- `/review-pr-wt 81` (PR number only — uses the current repo)
+- `/review-pr-wt` (interactive — prompts for repo then shows open PRs)
 
 ---
 
@@ -73,31 +77,51 @@ Note the head branch name, base branch, title, body, author, and file count.
 
 ---
 
-## Step 3 — Check out the branch (with confirmation)
+## Step 3 — Create an isolated worktree for the PR
 
-Run `git status` to check for unstaged or uncommitted changes in the current working directory.
+This skill does **not** check the branch out in the current working tree. It creates a dedicated worktree instead, leaving your current branch and any uncommitted changes untouched.
 
-If there are any changes, warn the user:
-
-> "Your working tree has uncommitted changes. Checking out the PR branch may fail or hide them. Continue anyway? (y/n)"
-
-If the user says no, stop here.
-
-Otherwise, fetch and check out the branch:
+Record the current branch first, so the guarantee can be verified at the end of this step:
 
 ```bash
-git fetch origin
-git checkout <head-branch>
-git pull origin <head-branch>
+git branch --show-current    # remember this value
 ```
 
-If checkout fails (e.g. local branch conflicts), report the error and stop — do not force anything.
+Fetch the PR's head ref into a local branch, then build the worktree from it. Neither command touches the current working tree:
 
----
+```bash
+git fetch origin pull/<number>/head:pr-<number>
+git worktree add ../<repo>-pr-<number> pr-<number>
+```
+
+> **Never use `gh pr checkout` here.** It has no worktree-aware flag and acts on the current working directory — it would switch *your* branch, which is exactly what this skill exists to prevent.
+
+Confirm the isolation held before continuing:
+
+```bash
+git branch --show-current                            # must equal the value recorded above
+git -C ../<repo>-pr-<number> branch --show-current   # must be pr-<number>
+```
+
+If the first command returns anything else, **stop and tell the user immediately** — the working tree was disturbed and must be restored before the review continues.
+
+If the local `pr-<number>` branch already exists from an earlier review, either refresh it (`git fetch origin pull/<number>/head:pr-<number> --force`) or pick a fresh name. If the worktree path already exists, `git worktree add` fails — tell the user and ask whether to reuse it or remove it first (`git worktree remove ../<repo>-pr-<number>`).
+
+**Every subsequent git and file operation runs against the worktree path**, never the main checkout. Do not rely on the shell's working directory — pass the path explicitly: `git -C ../<repo>-pr-<number> <command>`, and full worktree-relative paths when reading files.
+
+### What a fresh worktree does not have
+
+- **No `node_modules`.** These are pnpm workspaces, so a new worktree cannot run `pnpm typecheck`, `pnpm lint`, or any test until `pnpm install` runs there — several minutes and a few hundred MB. This skill reviews by reading the diff and the surrounding code, so that is usually unnecessary. If a finding genuinely needs the suite, say so and run it from the main checkout on that branch instead.
+- **No database or containers.** `docker compose` services and `DATABASE_URL` point at the original checkout; nothing DB-backed runs in the worktree.
+- **No submodule contents.** `otterfin-cloud` carries the `otterfin` community repo as a submodule, and a new worktree leaves it empty. If the PR touches anything spanning that boundary, populate it first:
+
+  ```bash
+  git -C ../otterfin-cloud-pr-<number> submodule update --init --recursive
+  ```
 
 ## Step 4 — Detect the tech stack
 
-Determine the stack from the repo name and repo contents:
+Determine the stack from the repo name and the worktree contents:
 
 | Repo | Primary stack |
 |------|--------------|
@@ -128,13 +152,13 @@ Determine the stack from the repo name and repo contents:
 - **No PII in logs** — trip details, place names, locations, and emails are all sensitive; log `user_id`, action, timestamp only.
 - **No copyright/license headers** (closed-source commercial), unlike OtterFin which requires an AGPLv3 header on first-party files.
 
-Also read `CLAUDE.md` (and `AGENTS.md`) at the repo root — they contain the authoritative tech stack, architecture rules, security rules, and conventions that override the defaults in this skill.
+Also read `CLAUDE.md` (and `AGENTS.md`) at the root of the worktree — they contain the authoritative tech stack, architecture rules, security rules, and conventions that override the defaults in this skill.
 
 ---
 
 ## Step 5 — Review the PR
 
-Read the changed files from the GitHub MCP and from the checked-out local copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
+Read the changed files from the GitHub MCP and from the worktree copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
 
 **Only Summary and Verdict are required. Omit every section with no findings** — do not emit a heading followed by "no issues found", "N/A", or a restatement of what you checked. The sections below are a checklist for *you*, not a template for the output; a small PR should routinely produce a review with two or three headings.
 
@@ -246,3 +270,90 @@ End with one of three verdicts and a brief rationale:
 | **Request changes** | One or more issues must be addressed before merge |
 
 List any blocking issues clearly under the verdict.
+
+---
+
+## Step 7 — Resolve prior review feedback (re-reviews only)
+
+This applies **only when the PR already has a review that requested changes** (or unresolved review threads) and the author has since pushed updates meant to address them. Detect it:
+
+```
+mcp__plugin_github_github__pull_request_read { "method": "get_reviews", "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
+mcp__plugin_github_github__pull_request_read { "method": "get_review_comments", "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
+```
+
+If there is no prior "changes requested" review and no outstanding threads, **skip this step entirely**.
+
+Otherwise judge each prior item on whether the concern is genuinely resolved — not merely that something nearby changed — and show the user a checklist:
+
+```
+Prior review feedback:
+  1. [addressed]     "Scope the lookup by householdId" — now scoped in lib/actions/transaction.ts:212
+  2. [addressed]     "Extract the duplicated transfer mapping" — deriveTransferMetadata, transaction.ts:64
+  3. [not addressed] "Add a test for the expired-token path" — no new test found
+```
+
+If every applicable item is addressed, ask:
+
+> **"The prior review feedback looks addressed. Mark the resolved review threads as resolved in GitHub? (y/n)"**
+
+On yes, resolve them with `gh` — thread resolution is GraphQL-only:
+
+```bash
+# 1. List unresolved threads and their IDs
+gh api graphql -f query='
+  query($owner:String!, $repo:String!, $pr:Int!) {
+    repository(owner:$owner, name:$repo) {
+      pullRequest(number:$pr) {
+        reviewThreads(first:100) {
+          nodes { id isResolved isOutdated comments(first:1){ nodes { body path line } } }
+        }
+      }
+    }
+  }' -F owner=<owner> -F repo=<repo> -F pr=<number>
+
+# 2. Resolve each agreed thread by ID
+gh api graphql -f query='
+  mutation($threadId:ID!) {
+    resolveReviewThread(input:{threadId:$threadId}) { thread { id isResolved } }
+  }' -F threadId=<thread-node-id>
+```
+
+- Resolve only threads the user confirmed. Never resolve one whose feedback is unaddressed.
+- If `gh auth status` fails, report it and skip resolution rather than silently trying another path.
+- Leave unaddressed items open and call them out under the verdict as blocking.
+- `gh` talks to the remote, so it behaves identically from the worktree.
+
+---
+
+## Step 8 — Clean up the worktree
+
+After delivering the verdict, ask: **"Remove the review worktree at `../<repo>-pr-<number>`? (y/n)"**
+
+On yes:
+
+```bash
+git worktree remove ../<repo>-pr-<number>
+git branch -D pr-<number>   # only if the local pr-<number> branch is no longer needed
+```
+
+`git worktree remove` refuses when the worktree has changes — including a `pnpm install` you ran there, since `node_modules` is gitignored but `pnpm-lock.yaml` may have moved. Report what is there and let the user choose between `--force` and keeping it.
+
+If the user wants to keep the worktree (to keep iterating, or to run the suite there), leave it and remind them it can be removed later with `git worktree remove ../<repo>-pr-<number>`.
+
+If `/submit-pr-review` runs next, leave the worktree in place — that skill posts the review and then cleans up.
+
+---
+
+## Reviewing several PRs at once
+
+This skill reviews one PR per invocation. To review several genuinely in parallel, run one worktree and one Claude session per PR in separate terminals:
+
+```bash
+git fetch origin pull/27/head:pr-27
+git worktree add ../otterfin-pr-27 pr-27
+cd ../otterfin-pr-27 && claude
+# then in that session: /review-pr-wt 27
+```
+
+Same rule as Step 3: fetch the head ref into a local branch, then build the worktree from it. Never `gh pr checkout` — it switches the branch of whichever tree you run it in.
