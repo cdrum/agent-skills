@@ -21,6 +21,7 @@ Everything a skill produces for a person to read opens with a plain-English TL;D
 | `/review-pr` | Review a GitHub PR — checks the branch out locally (or in a separate worktree when you say "in a worktree"), then covers security, tests, performance, migrations, and conventions |
 | `/submit-pr-review` | Submit the review you just produced to the PR — one review, inline-anchored comments, a verdict GitHub will accept, then restores the local checkout |
 | `/draft-release` | Draft public-facing release notes for an OtterFin version — an Updates post for the website plus a GitHub release body |
+| `/wendways-whats-new-highlight` | Build a 650px Wendways "What's New" highlight card (exported as a 2× PNG) and trim the release copy to What's New length. Runs in Claude Design on the design system, or anywhere else via standalone HTML and headless Chrome |
 | `/humanize` | Remove AI writing patterns from a file and rewrite it to sound authentically human |
 
 Skills assume the projects they were written against: Wendways (`Wendways/wendways`) and OtterFin (`OtterFin-ai/otterfin`, `OtterFin-ai/otterfin-cloud`). They read each repo's own `CLAUDE.md` / `AGENTS.md` and treat it as authoritative where the two disagree.

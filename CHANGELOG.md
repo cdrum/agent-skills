@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `/wendways-whats-new-highlight`: makes the image and short copy for a Wendways "What's New" entry. It builds a 650px highlight card and trims the release notes to length. In Claude Design it uses the Wendways design system and the design export tools. Elsewhere it writes a standalone HTML card and renders a 1300×702 PNG with headless Chrome
 - Initial set of skills: `/commit`, `/start-issue`, and `/humanize`
 - `/raise-pr` skill to raise a GitHub pull request from the current branch
 - `/review-pr` skill to review a GitHub pull request
