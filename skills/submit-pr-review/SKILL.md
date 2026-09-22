@@ -49,10 +49,12 @@ If a URL was supplied, prefer its owner/repo but sanity-check against the remote
 
 Then fetch the PR and the authenticated user:
 
+```bash
+gh pr view <number> --repo <owner>/<repo> --json author,headRefOid,url
+gh api user --jq .login
 ```
-mcp__plugin_github_github__pull_request_read { "method": "get", "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
-mcp__plugin_github_github__get_me {}
-```
+
+A connected GitHub MCP server's `pull_request_read` (`method: "get"`) and `get_me` return the same two facts. Call them by the names this session exposes. Claude Code prefixes them `mcp__plugin_github_github__…`; do not use that prefix unless those exact tools are present.
 
 Note two things:
 
@@ -95,46 +97,35 @@ If an item cannot be tied cleanly to a line — an architectural concern, a miss
 
 ---
 
-## Step 5 — Create a pending review, attach comments, submit
+## Step 5 — Post one review
 
-Post everything as **one** review so the author gets a single notification.
+Post everything as **one** review so the author gets a single notification. Post **every** agreed item, nits included. Prefix each with its severity (🔴 blocking, 🟡 recommended, `Nit:`) so it can be triaged at a glance.
 
-**5a. Open a pending review** (omitting `event` keeps it pending):
+Use `gh api`. One request creates the review, attaches the inline comments, and submits the event:
 
-```
-mcp__plugin_github_github__pull_request_review_write {
-  "method": "create", "owner": "<owner>", "repo": "<repo>",
-  "pullNumber": <number>, "commitID": "<head-sha>"
+```bash
+gh api --method POST "repos/<owner>/<repo>/pulls/<number>/reviews" --input - <<'EOF'
+{
+  "commit_id": "<head-sha>",
+  "event": "<REQUEST_CHANGES|COMMENT|APPROVE>",
+  "body": "<summary: what the PR does, what you verified, then the headline issues>",
+  "comments": [
+    {
+      "path": "<file path>",
+      "line": <line>,
+      "side": "RIGHT",
+      "body": "<severity marker + problem + why + fix>"
+    }
+  ]
 }
+EOF
 ```
 
-**5b. Add each inline item:**
+For a multi-line range, add `"start_line"` and `"start_side": "RIGHT"` on that comment. Items with no line go in `body`, not in `comments`.
 
-```
-mcp__plugin_github_github__add_comment_to_pending_review {
-  "owner": "<owner>", "repo": "<repo>", "pullNumber": <number>,
-  "path": "<file path>", "line": <line>, "side": "RIGHT",
-  "startLine": <first line>, "startSide": "RIGHT",
-  "subjectType": "LINE",
-  "body": "<severity marker + problem + why + fix>"
-}
-```
+If a comment is rejected because the line is not in the diff, drop it from `comments`, put that item in `body`, and post again. Do not retry a bad anchor.
 
-Post **every** agreed item, nits included. Prefix each with its severity (🔴 blocking, 🟡 recommended, `Nit:`) so it can be triaged at a glance.
-
-**5c. Submit** with the confirmed event and a summary body — what the PR does, what you verified, then the headline issues:
-
-```
-mcp__plugin_github_github__pull_request_review_write {
-  "method": "submit_pending", "owner": "<owner>", "repo": "<repo>",
-  "pullNumber": <number>, "event": "<REQUEST_CHANGES|COMMENT|APPROVE>",
-  "body": "<summary>"
-}
-```
-
-- If `add_comment_to_pending_review` reports no pending review, re-run 5a.
-- If an inline comment is rejected because the line is not in the diff, move that item to the review body — do not retry a bad anchor.
-- `gh` is the fallback if the MCP is unavailable, but the GraphQL path for review comments is fiddly; prefer the MCP tools.
+A connected GitHub MCP server can do the same in three calls, under whatever names this session gives these tools: `pull_request_review_write` with `method: "create"` (omit `event` so it stays pending), then `add_comment_to_pending_review` per inline item (`path`, `line`, `side: "RIGHT"`, `subjectType: "LINE"`, optional `startLine` / `startSide`), then `pull_request_review_write` with `method: "submit_pending"` and the confirmed `event` and `body`. Claude Code prefixes those `mcp__plugin_github_github__…`. Do not call a prefixed name unless that exact tool is in this session. If `add_comment_to_pending_review` reports no pending review, create it again. If the MCP path fails, use the `gh api` request above.
 
 ---
 

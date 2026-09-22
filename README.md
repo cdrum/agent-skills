@@ -1,10 +1,10 @@
-# Claude Code Skills
+# Agent Skills
 
-My personal collection of Claude Code slash commands.
+My personal collection of agent skills.
 
 ## What are these?
 
-Claude Code lets you define custom `/slash-commands` as markdown files. Drop a `.md` file into `~/.claude/commands/` and it becomes available as `/filename` in any Claude Code session. This repo is my personal collection of those commands.
+Each skill is a directory containing `SKILL.md`. The directory name matches the `name` field in that file's frontmatter. Claude Code, Cursor, and any other harness that loads this layout can run them. Steps that talk to Linear or GitHub name the MCP server's own tool (`get_issue`, `create_pull_request`) and also give a `gh` command where one exists, so a harness-specific prefix like `mcp__claude_ai_Linear__…` is never required.
 
 > **Note on the npx approach:** You may have seen repos like [mattpocock/skills](https://github.com/mattpocock/skills) that use `npx skills@latest add ...` to install commands. That's a custom npm tool Matt built — it's not a Claude-native mechanism. The native approach is just copying files into the right directory.
 
@@ -30,25 +30,30 @@ First, clone the repo.
 
 ### Install all skills
 
-From inside the cloned repo, symlink every skill into your personal Claude Code commands directory:
+From inside the cloned repo, symlink every skill directory. Cursor reads `~/.cursor/skills/`. Claude Code reads `~/.claude/skills/`, and still accepts the same file as a slash command when `~/.claude/commands/<name>.md` points at `SKILL.md`.
 
 ```bash
-for f in "$(pwd)/skills"/*.md; do
-  ln -s "$f" ~/.claude/commands/$(basename "$f")
+for d in "$(pwd)/skills"/*/; do
+  name="$(basename "$d")"
+  ln -sfn "$d" ~/.cursor/skills/"$name"
+  ln -sfn "$d" ~/.claude/skills/"$name"
+  ln -sfn "$d/SKILL.md" ~/.claude/commands/"$name".md
 done
 ```
 
 ### Install a single skill
 
 ```bash
-ln -s "$(pwd)/skills/commit.md" ~/.claude/commands/commit.md
+ln -sfn "$(pwd)/skills/commit" ~/.cursor/skills/commit
+ln -sfn "$(pwd)/skills/commit" ~/.claude/skills/commit
+ln -sfn "$(pwd)/skills/commit/SKILL.md" ~/.claude/commands/commit.md
 ```
 
 Replace `commit` with whichever skill you want. Run these from inside the cloned repo.
 
 ### After installing
 
-The skills are immediately available as `/commit`, `/start-issue`, etc. in any Claude Code session. No restart needed.
+The skills are available as `/commit`, `/start-issue`, and so on. Cursor picks them up in a new Agent chat. Claude Code picks them up in the next session.
 
 ### Keeping up to date
 
@@ -60,7 +65,7 @@ Symlinks point at the repo files directly, so pulled changes take effect immedia
 
 ## Adding a skill
 
-1. Create `skills/<skill-name>.md` — see the frontmatter format below.
+1. Create `skills/<skill-name>/SKILL.md` — see the frontmatter format below. The directory name and the `name` field must match.
 2. Test it locally by symlinking it and running it in a real session.
 3. Commit it with a short description of what it does and when to use it.
 

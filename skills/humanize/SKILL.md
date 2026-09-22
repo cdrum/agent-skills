@@ -11,11 +11,11 @@ Remove telltale signs of AI-generated writing from a file and rewrite it to soun
 
 `/humanize <file-path>`
 
-The file path will be provided as `$ARGUMENTS`.
+The file path is the one given when the skill was invoked. If none was given, ask for it. Do not expect a `$ARGUMENTS` variable — that expansion exists only in Claude Code slash commands.
 
 ## Instructions
 
-1. **Read the file** at the path given in `$ARGUMENTS`.
+1. **Read the file** at the path the user gave.
 
 2. **Audit for AI writing patterns.** Scan the content for the following telltale signs and note every instance before rewriting:
 

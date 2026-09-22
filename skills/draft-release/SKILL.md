@@ -7,7 +7,7 @@ description: Draft public-facing release notes for an OtterFin version — reads
 
 Turn a released version into notes a **self-hoster** can read. The `CHANGELOG.md` entries in these repos are deliberately dense and engineer-facing — migration names, function names, row counts. That is the right register for the changelog and the wrong one for an announcement, so this skill translates rather than copies.
 
-**This skill does not cut a release.** Version bumping, the changelog rollover, the commit and the tag belong to the repo's own `/release` command (`.claude/commands/release.md` in `otterfin` and `otterfin-cloud`). Run that first; run this after, against a version that already exists.
+**This skill does not cut a release.** Version bumping, the changelog rollover, the commit and the tag belong to the repo's own release command (`.claude/commands/release.md` in `otterfin` and `otterfin-cloud`). Run that first; run this after, against a version that already exists.
 
 ## Usage
 
@@ -52,13 +52,9 @@ For `unreleased`, read the `## [Unreleased]` section instead.
 git log --oneline v0.7.0..v0.8.0
 ```
 
-**The issues behind it.** Extract every `OF-\d+` (or `WW-\d+`) referenced in the section and the commits, then read each for the user-facing intent:
+**The issues behind it.** Extract every `OF-\d+` (or `WW-\d+`) referenced in the section and the commits, then read each for the user-facing intent. Call the connected Linear MCP server's `get_issue` with `{ "id": "OF-87" }`. Discover that tool in this session — Claude Code names it `mcp__claude_ai_Linear__get_issue`; other harnesses do not. Do not paste a prefixed name unless that exact tool is present. If no Linear server is connected, skip issue enrichment and say so; the changelog is enough to draft from.
 
-```
-mcp__claude_ai_Linear__get_issue  { "id": "OF-87" }
-```
-
-If `mcp__claude_ai_Linear__list_releases { "version": "<version>" }` returns a match, the workspace tracks this release natively and `list_issues { "release": "<id-or-slug>" }` gives the full set. It returns nothing today — treat the changelog as the authority and Linear as enrichment, not the reverse.
+If that server's `list_releases` with `{ "version": "<version>" }` returns a match, the workspace tracks this release natively and `list_issues` with `{ "release": "<id-or-slug>" }` gives the full set. It returns nothing today — treat the changelog as the authority and Linear as enrichment, not the reverse.
 
 ---
 

@@ -45,11 +45,13 @@ Resolve both owner and repo from the current directory's remote, and skip to Ste
 
 ### If nothing was provided
 
-Ask the user: **"Which repo? (otterfin / otterfin-cloud / wendways / …)"**, resolve the owner as above, then list open pull requests using the GitHub MCP:
+Ask the user: **"Which repo? (otterfin / otterfin-cloud / wendways / …)"**, resolve the owner as above, then list open pull requests:
 
+```bash
+gh pr list --repo <owner>/<repo> --state open --json number,title,headRefName,author
 ```
-mcp__plugin_github_github__list_pull_requests { "owner": "<owner>", "repo": "<repo>", "state": "open" }
-```
+
+A connected GitHub MCP server's `list_pull_requests` tool (`owner`, `repo`, `state: "open"`) returns the same list. Call it by the name this session exposes — Claude Code prefixes it `mcp__plugin_github_github__list_pull_requests`; do not use that prefix unless that exact tool is present. If neither `gh` nor the MCP server is available, say so and stop.
 
 Display a numbered list:
 
@@ -65,9 +67,11 @@ Ask: **"Which PR? (enter a number)"** and resolve the selection to an owner/repo
 
 ## Step 2 — Fetch PR details
 
+```bash
+gh pr view <number> --repo <owner>/<repo> --json title,body,author,headRefName,baseRefName,files,url
 ```
-mcp__plugin_github_github__pull_request_read { "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
-```
+
+The GitHub MCP tool `pull_request_read` (`owner`, `repo`, `pullNumber`) is equivalent, under whatever name this session gives it.
 
 Note the head branch name, base branch, title, body, author, and file count.
 
@@ -134,7 +138,7 @@ Also read `CLAUDE.md` (and `AGENTS.md`) at the repo root — they contain the au
 
 ## Step 5 — Review the PR
 
-Read the changed files from the GitHub MCP and from the checked-out local copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
+Read the changed files from `gh pr diff <number> --repo <owner>/<repo>` (or the GitHub MCP) and from the checked-out local copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
 
 **Only Summary and Verdict are required. Omit every section with no findings** — do not emit a heading followed by "no issues found", "N/A", or a restatement of what you checked. The sections below are a checklist for *you*, not a template for the output; a small PR should routinely produce a review with two or three headings.
 

@@ -24,8 +24,8 @@ When I have completed some work and this is a logical break point. Commit at log
 
 7. **Confirm success** and display the resulting commit hash and message.
 
-8. DO NOT include a signature for the AI agent used to do this work, e.g. `Co-Authored-By: Claude ...`. Never add these under any circumstances.
+8. DO NOT include a signature for the AI agent used to do this work, e.g. `Co-Authored-By: Claude`, Cursor, or any other agent. Never add these under any circumstances.
 
 ## Important notes
 - Make sure you have very high confidence of the Linear task ID. Do not reference an incorrect ID.
-- Do NOT include any co-author trailer or AI attribution line (e.g. `Co-Authored-By: Claude...`). Never add these under any circumstances.
+- Do NOT include any co-author trailer or AI attribution line (e.g. `Co-Authored-By: Claude`, Cursor, or any other agent). Never add these under any circumstances.

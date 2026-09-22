@@ -49,11 +49,13 @@ Resolve both owner and repo from the current directory's remote, and skip to Ste
 
 ### If nothing was provided
 
-Ask the user: **"Which repo? (otterfin / otterfin-cloud / wendways / …)"**, resolve the owner as above, then list open pull requests using the GitHub MCP:
+Ask the user: **"Which repo? (otterfin / otterfin-cloud / wendways / …)"**, resolve the owner as above, then list open pull requests:
 
+```bash
+gh pr list --repo <owner>/<repo> --state open --json number,title,headRefName,author
 ```
-mcp__plugin_github_github__list_pull_requests { "owner": "<owner>", "repo": "<repo>", "state": "open" }
-```
+
+A connected GitHub MCP server's `list_pull_requests` tool (`owner`, `repo`, `state: "open"`) returns the same list. Call it by the name this session exposes — Claude Code prefixes it `mcp__plugin_github_github__list_pull_requests`; do not use that prefix unless that exact tool is present. If neither `gh` nor the MCP server is available, say so and stop.
 
 Display a numbered list:
 
@@ -69,9 +71,11 @@ Ask: **"Which PR? (enter a number)"** and resolve the selection to an owner/repo
 
 ## Step 2 — Fetch PR details
 
+```bash
+gh pr view <number> --repo <owner>/<repo> --json title,body,author,headRefName,baseRefName,files,url
 ```
-mcp__plugin_github_github__pull_request_read { "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
-```
+
+The GitHub MCP tool `pull_request_read` (`owner`, `repo`, `pullNumber`) is equivalent, under whatever name this session gives it.
 
 Note the head branch name, base branch, title, body, author, and file count.
 
@@ -158,7 +162,7 @@ Also read `CLAUDE.md` (and `AGENTS.md`) at the root of the worktree — they con
 
 ## Step 5 — Review the PR
 
-Read the changed files from the GitHub MCP and from the worktree copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
+Read the changed files from `gh pr diff <number> --repo <owner>/<repo>` (or the GitHub MCP) and from the worktree copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
 
 **Only Summary and Verdict are required. Omit every section with no findings** — do not emit a heading followed by "no issues found", "N/A", or a restatement of what you checked. The sections below are a checklist for *you*, not a template for the output; a small PR should routinely produce a review with two or three headings.
 
@@ -277,10 +281,12 @@ List any blocking issues clearly under the verdict.
 
 This applies **only when the PR already has a review that requested changes** (or unresolved review threads) and the author has since pushed updates meant to address them. Detect it:
 
+```bash
+gh pr view <number> --repo <owner>/<repo> --json reviews,comments
+gh api "repos/<owner>/<repo>/pulls/<number>/comments"
 ```
-mcp__plugin_github_github__pull_request_read { "method": "get_reviews", "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
-mcp__plugin_github_github__pull_request_read { "method": "get_review_comments", "owner": "<owner>", "repo": "<repo>", "pullNumber": <number> }
-```
+
+The GitHub MCP tool `pull_request_read` with `method` `get_reviews` and `get_review_comments` returns the same data, under whatever name this session gives that tool.
 
 If there is no prior "changes requested" review and no outstanding threads, **skip this step entirely**.
 
@@ -347,13 +353,13 @@ If `/submit-pr-review` runs next, leave the worktree in place — that skill pos
 
 ## Reviewing several PRs at once
 
-This skill reviews one PR per invocation. To review several genuinely in parallel, run one worktree and one Claude session per PR in separate terminals:
+This skill reviews one PR per invocation. To review several in parallel, use one worktree and one agent session per PR:
 
 ```bash
 git fetch origin pull/27/head:pr-27
 git worktree add ../otterfin-pr-27 pr-27
-cd ../otterfin-pr-27 && claude
-# then in that session: /review-pr-wt 27
 ```
+
+Open `../otterfin-pr-27` in a separate session and run `/review-pr-wt 27` there.
 
 Same rule as Step 3: fetch the head ref into a local branch, then build the worktree from it. Never `gh pr checkout` — it switches the branch of whichever tree you run it in.

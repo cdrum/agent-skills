@@ -13,10 +13,16 @@ Examples: `/start-issue WW-342`, `/start-issue OF-91`
 
 ---
 
+## Tools
+
+Linear calls go to whatever Linear MCP server this session has connected. Use the server's own tool names: `get_issue`, `save_issue`, `list_issue_statuses`, `list_issue_labels`. A harness prefixes those differently — Claude Code exposes `mcp__claude_ai_Linear__get_issue`, Cursor exposes a namespaced tool — so discover the Linear tools in this session and call the one whose name ends in the tool below. Do not paste a prefixed name from another harness. If no Linear server is connected, say so and stop.
+
+---
+
 ## Step 1 — Fetch and verify the issue
 
 ```
-mcp__claude_ai_Linear__get_issue  { "id": "<ISSUE_ID>", "includeRelations": true }
+get_issue  { "id": "<ISSUE_ID>", "includeRelations": true }
 ```
 
 If the issue is not found, stop and tell the user.
@@ -30,7 +36,7 @@ Note the `team`, `state`, `assignee`, `labels`, and `gitBranchName` from the res
 Both are a single `save_issue` call. `assignee` accepts the literal string `"me"`, and `state` accepts a status **name**, so there is no need to look up a user ID or a workflow state ID:
 
 ```
-mcp__claude_ai_Linear__save_issue  { "id": "<ISSUE_ID>", "assignee": "me", "state": "In Progress" }
+save_issue  { "id": "<ISSUE_ID>", "assignee": "me", "state": "In Progress" }
 ```
 
 Only send the fields that actually need changing:
@@ -44,7 +50,7 @@ Report only what you changed (e.g. "Assigned to you, moved to In Progress.").
 If `state: "In Progress"` is rejected, the team's status is named something else — list the team's statuses and pick the one whose type is `started`:
 
 ```
-mcp__claude_ai_Linear__list_issue_statuses  { "team": "<TEAM_KEY>" }
+list_issue_statuses  { "team": "<TEAM_KEY>" }
 ```
 
 ---
@@ -66,13 +72,13 @@ Read the issue's labels and map to a prefix. Match case-insensitively on the lab
 **Missing label:** if you had to ask, apply the matching label after the user answers. Look up the team's labels to find the exact name in use:
 
 ```
-mcp__claude_ai_Linear__list_issue_labels  { "team": "<TEAM_KEY>" }
+list_issue_labels  { "team": "<TEAM_KEY>" }
 ```
 
 Then save it. **`labels` replaces the entire label set**, so send the issue's existing label names plus the new one — sending only the new name silently drops the others:
 
 ```
-mcp__claude_ai_Linear__save_issue  { "id": "<ISSUE_ID>", "labels": ["<existing>", "...", "<new>"] }
+save_issue  { "id": "<ISSUE_ID>", "labels": ["<existing>", "...", "<new>"] }
 ```
 
 Tell the user which label you added.
@@ -112,7 +118,7 @@ Repo conventions this matches:
 
 | Repo | Convention |
 |---|---|
-| `wendways` | `<type>/ww-<n>-<slug>` with `<type>` from the issue's `type:` label — `CLAUDE.md` says to ignore Linear's suggested `<username>/…` form |
+| `wendways` | `<type>/ww-<n>-<slug>` with `<type>` from the issue's `type:` label — the repo's agent instructions say to ignore Linear's suggested `<username>/…` form |
 | `otterfin`, `otterfin-cloud` | `feature/`, `fix/`, or `plugin/` plus the issue id — see `AGENTS.md` § Git & PR Conventions |
 
 If the repo's own `CLAUDE.md` or `AGENTS.md` states a different convention, that file wins over this table.

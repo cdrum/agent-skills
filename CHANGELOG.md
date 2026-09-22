@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Each skill is now a directory with `SKILL.md` (`skills/<name>/SKILL.md`) so the same files can be symlinked into Cursor and Claude Code skill directories
+- Skill steps no longer call Claude Code tool ids. MCP steps use the server's own tool name (`get_issue`, `create_pull_request`) and tell the agent to discover how this session prefixes it. GitHub steps also have a `gh` path. `/validate-fe` drives whichever browser tools the session has, and `/humanize` no longer reads `$ARGUMENTS`
+- Repo instructions now live in `AGENTS.md`. `CLAUDE.md` is a stub that points there
+
 ### Added
 
 - Initial set of skills: `/commit`, `/start-issue`, and `/humanize`

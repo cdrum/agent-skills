@@ -197,22 +197,7 @@ Populate each section from the commit messages, diff, and any context available.
 
 Use the base branch resolved in Step 0.
 
-Prefer the GitHub MCP if available. Fall back to `gh` CLI if the MCP call fails.
-
-### Option A — GitHub MCP
-
-```
-mcp__plugin_github_github__create_pull_request {
-  "owner": "<owner>",
-  "repo": "<repo>",
-  "title": "<composed title>",
-  "body": "<composed description>",
-  "head": "<current-branch>",
-  "base": "<base>"
-}
-```
-
-### Option B — gh CLI fallback
+Create it with `gh`. This works in any harness that has the GitHub CLI authenticated:
 
 ```bash
 gh pr create \
@@ -221,6 +206,8 @@ gh pr create \
   --base <base> \
   --head <current-branch>
 ```
+
+If a GitHub MCP server is connected, its `create_pull_request` tool is equivalent — same fields (`owner`, `repo`, `title`, `body`, `head`, `base`). Call the tool this session actually exposes. Claude Code prefixes it `mcp__plugin_github_github__create_pull_request`; Cursor and others do not. Do not call a prefixed name unless that exact tool is in this session. If the MCP call fails, use `gh`.
 
 ---
 
