@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `/review-pr` findings are now written so a reader can follow them without reading the code. Each review defines its domain terms once against one running example from the PR, then keeps to those terms. Every finding follows the same shape: Setup, Steps, What happens, What should happen, Why, Fix, Scope. Money appears in real currency, never database minor units, and file references go at the end. `/submit-pr-review` carries the Terms section and this shape into the posted GitHub review
 - Every skill's output now opens with a plain-English TL;DR, so the result and next step come before the technical detail. This covers chat reports, PR descriptions, review bodies, changelog entries, and Linear issues a skill creates
 - `/review-pr` now covers both review modes: by default it checks the branch out in your working tree for local testing, and it uses a separate worktree only when you ask for one. `/review-pr-wt` is removed. The review output uses 🔴 / 🟡 / Nit tags and `path:line` anchors, which `/submit-pr-review` reads directly
 - Skills are trimmed for current models: generic review checklists, repeated tool-prefix boilerplate, filler steps, and all-caps emphasis are gone, and the project-specific rules and guardrails stay

@@ -13,7 +13,7 @@ Posts the review already produced in this conversation (normally by `/review-pr`
 
 ## Step 1 — Collect the items
 
-From the review, take the TL;DR and every item with its tag (🔴 must fix, 🟡 should fix, Nit) and its `path:line` anchor, or "general" if it has none.
+From the review, take the TL;DR, the Terms section, and every item with its tag (🔴 must fix, 🟡 should fix, Nit) and its `path:line` anchor from the **Ref** line, or "general" if it has none.
 
 ## Step 2 — Resolve the PR and author
 
@@ -44,16 +44,16 @@ Anchor each inline item to its line **in the PR's version of the file at the hea
 
 ## Step 5 — Post one review
 
-Post every agreed item, nits included, each starting with its tag. The body leads with a plain-English TL;DR, meaning the verdict and what the author needs to do, before any technical detail:
+Post every agreed item, nits included, each starting with its tag. The body opens with the plain-English TL;DR (the verdict and what the author needs to do), then the Terms section, then the general items. Each inline comment keeps the finding's plain-English shape (Setup, Steps, What happens, What should happen, Why, Fix, Scope) and uses the same terms and running example as the Terms section. Drop the **Ref** line, since the comment is already anchored to it:
 
 ```bash
 gh api --method POST "repos/<owner>/<repo>/pulls/<number>/reviews" --input - <<'EOF'
 {
   "commit_id": "<head-sha>",
   "event": "<REQUEST_CHANGES|COMMENT|APPROVE>",
-  "body": "**TL;DR:** <plain-English verdict and what to do>\n\n<general items and notes>",
+  "body": "**TL;DR:** <plain-English verdict and what to do>\n\n## Terms\n<…>\n\n<general items and notes>",
   "comments": [
-    { "path": "<file>", "line": <line>, "side": "RIGHT", "body": "🔴 <problem> — <why> — <fix>" }
+    { "path": "<file>", "line": <line>, "side": "RIGHT", "body": "🔴 **<title>**\n**Setup:** … **Steps:** … **What happens:** … **What should happen:** … **Why:** … **Fix:** … **Scope:** …" }
   ]
 }
 EOF

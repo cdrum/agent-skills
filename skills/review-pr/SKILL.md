@@ -97,7 +97,18 @@ Read the diff (`gh pr diff <number> --repo <owner>/<repo>`) and the surrounding 
 
 ## Step 6 — Write the review
 
-Use this shape. Omit any section with nothing in it. Don't add empty headings, praise for code that's merely correct, or a closing recap.
+Write for a reader who has to follow the reasoning, not just a list of code findings. An accurate review that mixes terms and shows raw numbers is still hard to act on.
+
+**Rules:**
+
+1. **Define terms once, with one running example.** Right after the TL;DR, add a short **Terms** section. It defines each domain word the findings will use, illustrated with one concrete example taken from the PR. For a Wendways expenses PR, the example might be a booking with a stated total (a HK$10,960 Cathay Pacific booking) containing components (Flight 1, Flight 2), plus a separate standalone component (a hotel). The section then defines "price", "pricing mode", "expense", "split", "trip cost", and any new concept the PR introduces. Skip the Terms section only when the PR has no domain concepts, for example a dependency bump or a lint fix.
+2. **Stick to those terms and that example.** Never switch synonyms partway through ("booking" vs. "reservation", "component" vs. "leg" vs. "plan item"). Count things explicitly ("1 split", "2 splits totaling HK$21,920"). Show money in real currency (HK$18,295.00), never in the database's minor units (1,829,500).
+3. **Give each Must fix and Should fix finding the same shape, in plain English:** **Setup** (the state of the example before), **Steps** (what the user does), **What happens**, **What should happen**, **Why** (the cause in one or two sentences, with code terms only where they're needed), **Fix**. Put file and line references at the end of the finding, not in the explanation.
+4. **Give the scope.** Say plainly what the finding does *not* affect (for example, "no one's balance changes") and how often it's likely to happen.
+
+Nits and non-behavioral findings (naming, dead code, a missing test) can skip the Setup/Steps shape. Give them one plain sentence, then the reference.
+
+Use this layout. Omit any section with nothing in it. Don't add empty headings, praise for code that's merely correct, or a closing recap.
 
 ```markdown
 ## TL;DR
@@ -105,22 +116,32 @@ Use this shape. Omit any section with nothing in it. Don't add empty headings, p
 sentences: what this PR does, whether it's safe to merge, and what the author needs to do.
 No file names, function names, or jargon here.>
 
+## Terms
+<Running example from the PR, then each domain term defined against it.>
+
 ## Must fix
-- 🔴 **<short title>** · `path/to/file.ts:123`
-  <what's wrong> — <why it matters> — <the fix>
+### 🔴 <short title>
+- **Setup:** <the example's state before>
+- **Steps:** <what the user does>
+- **What happens:** <…>
+- **What should happen:** <…>
+- **Why:** <cause, in one or two sentences>
+- **Fix:** <…>
+- **Scope:** <what it doesn't affect; how rare it is>
+- **Ref:** `path/to/file.ts:123`
 
 ## Should fix
-- 🟡 **<short title>** · `path:line` (or "general")
-  <what's wrong> — <why it matters> — <the fix>
+### 🟡 <short title>
+<same shape; Ref may be "general">
 
 ## Nits
-- Nit: <…> · `path:line`
+- Nit: <one plain sentence> · `path:line`
 
 ## Notes
 <Anything else a reviewer needs: approach concerns, what you verified, tests you couldn't run.>
 ```
 
-Use the 🔴 / 🟡 / Nit tags and `path:line` anchors exactly as shown, because `/submit-pr-review` reads them.
+Keep the 🔴 / 🟡 / Nit tags and the `path:line` in each **Ref** line, because `/submit-pr-review` reads them.
 
 ## Step 7 — Prior feedback (re-reviews only)
 
