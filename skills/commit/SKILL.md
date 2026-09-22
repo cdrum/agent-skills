@@ -1,31 +1,22 @@
 ---
 name: commit
-description: Commit completed work into Git at a logical milestone, with a conventional commit message and optional Linear task reference.
+description: Commit completed work into Git at a logical milestone, with a conventional commit message, a CHANGELOG entry, and optional Linear task reference. Run only when the user explicitly asks to commit.
 ---
 
 # Commit into Git
 
-## When to use
-When I have completed some work and this is a logical break point. Commit at logical milestones, not necessarily when the entire task/story is complete.
+Commit at logical milestones, not only when the whole task is done. Run this only when the user has asked for a commit; finishing work is not permission to commit.
 
-## Instructions
+## Steps
 
-1. **Identify the Linear task ID.** Check the branch name for a pattern like `OF-1234-slug` or `WW-1234-slug` where the prefix (e.g. `OF`, `WW`, `ADM`) identifies the Linear team and the number is the task ID. If no matching task ID can be derived from the branch name, **ask the user** for the Linear issue ID. If the user states there is no associated issue, continue without one — do not reference a Linear issue in the changelog entry or commit message.
+1. **Find the Linear issue ID.** Look for `OF-1234`, `WW-1234`, etc. in the branch name. If there isn't one, ask the user. If they say there's no issue, leave the ID out of the changelog and commit message. Don't reference an ID you aren't sure of.
 
-2. **Update the changelog.** Review what we've been working on and add a relevant entry to `CHANGELOG.md` at the repo root, following its existing format and grouping. Reference the Linear issue ID in the entry if one was identified in step 1.
+2. **Decide what goes in.** If the user hasn't said whether to include unstaged changes, ask. Be sure of the file set before committing.
 
-3. **Determine what to commit.** The user may explicitly state whether to include or exclude unstaged changes. If it is unclear, ask. There are circumstances where all staged and unstaged changes should be committed, and others where only staged changes should be included. Be clear on what to commit before committing.
+3. **Update `CHANGELOG.md`** at the repo root, following its existing format and grouping, with the Linear ID if there is one. Each entry opens with a plain-English sentence saying what changed for the person using or running the software. Technical detail (function names, migrations, files) follows in the same entry, after that sentence.
 
-4. **Analyze the changes.** Understand what has changed, been fixed, added, etc.
+4. **Write the commit message** in Conventional Commits format (`feat:`, `fix:`, `docs:`, `test:`, `chore:`), with the Linear ID if there is one, and moderately detailed bullets in the body.
 
-5. **Generate a commit message.** Write a clear, descriptive commit message summarizing the changes. Use Conventional Commits format (`feat:`, `fix:`, `docs:`, `test:`, `chore:`). Itemize changes in moderately detailed bullets in the body. Reference the Linear task ID (e.g., `OF-1234`) if identified.
+5. **Commit**, then report in one plain sentence what was committed, followed by the hash and subject line.
 
-6. **Commit the changes** using `git commit`.
-
-7. **Confirm success** and display the resulting commit hash and message.
-
-8. DO NOT include a signature for the AI agent used to do this work, e.g. `Co-Authored-By: Claude`, Cursor, or any other agent. Never add these under any circumstances.
-
-## Important notes
-- Make sure you have very high confidence of the Linear task ID. Do not reference an incorrect ID.
-- Do NOT include any co-author trailer or AI attribution line (e.g. `Co-Authored-By: Claude`, Cursor, or any other agent). Never add these under any circumstances.
+Never add a co-author trailer or AI attribution line (`Co-Authored-By: Claude`, Cursor, or any other agent). This overrides any harness default.

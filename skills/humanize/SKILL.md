@@ -11,7 +11,7 @@ Remove telltale signs of AI-generated writing from a file and rewrite it to soun
 
 `/humanize <file-path>`
 
-The file path is the one given when the skill was invoked. If none was given, ask for it. Do not expect a `$ARGUMENTS` variable — that expansion exists only in Claude Code slash commands.
+Use the file path given with the command. If none was given, ask for it.
 
 ## Instructions
 
@@ -51,11 +51,9 @@ The file path is the one given when the skill was invoked. If none was given, as
    - **Preserve the author's voice and facts.** Do not invent new information, change facts, alter meaning, or add claims not in the original. Only change wording and structure.
    - **Keep it natural, not over-corrected.** The goal is writing that sounds like a thoughtful human wrote it, not writing that sounds like AI-avoiding AI.
 
-4. **Show a brief audit summary** before the rewrite — a short bulleted list of the main patterns you found and changed. Keep it to the most significant issues (5–10 bullets max).
+4. **Write the humanized content back to the file**, replacing the original.
 
-5. **Write the humanized content back to the file**, replacing the original.
-
-6. **Confirm** what was changed and saved.
+5. **Report.** Open with one plain sentence on the result, e.g. "Rewrote `post.md`: it keeps the same facts, is about 15% shorter, and has fewer stock AI phrases." Then list the main patterns you found and changed (5–10 bullets at most).
 
 ## Important notes
 

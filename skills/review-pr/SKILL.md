@@ -1,69 +1,38 @@
 ---
 name: review-pr
-description: Review a GitHub pull request — checks out the branch, then performs an opinionated review covering security, tests, performance, conventions, and stack-specific best practices.
+description: Review a GitHub pull request — checks the branch out in the current working tree (or in a separate git worktree only when explicitly asked), then gives an opinionated review covering security, tests, performance, migrations, and project conventions.
 ---
 
 # Review a Pull Request
 
 ## Usage
 
-`/review-pr [<github-pr-url> | <repo> <pr-number> | <pr-number>]`
+`/review-pr [<github-pr-url> | <repo> <pr-number> | <pr-number>] [in a worktree]`
 
-Examples:
-- `/review-pr https://github.com/OtterFin-ai/otterfin/pull/42`
-- `/review-pr wendways 81` (repo name + PR number)
-- `/review-pr 81` (PR number only — uses the current repo)
-- `/review-pr` (interactive — prompts for repo then shows open PRs)
+- `/review-pr 81` uses the current repo
+- `/review-pr wendways 81` or a full PR URL
+- `/review-pr` with no argument asks for the repo and lists open PRs
+- Add "in a worktree" (or "wt") to review without touching the current checkout
+
+**Default: check the branch out in the current working tree** so it can be run and tested locally. Use a worktree **only** when the user explicitly asks for one.
 
 ---
 
 ## Step 1 — Resolve the PR
 
-### Resolve the owner from the remote — always, first
-
-**Never hardcode the GitHub owner.** The personal repos do not share one: Wendways lives under `Wendways`, everything OtterFin lives under `OtterFin-ai`. A guessed owner produces a confusing 404 on the PR lookup, so read it from the repo you are standing in:
+Read the owner from the remote, never from memory. Wendways lives under `Wendways` and OtterFin under `OtterFin-ai`, so a guessed owner 404s:
 
 ```bash
 git remote get-url origin
 ```
 
-Parse the owner from the result — `git@github.com:Wendways/wendways.git` → `Wendways`, `https://github.com/OtterFin-ai/otterfin.git` → `OtterFin-ai`. Combine it with the repo name for the full slug.
+- **URL given:** parse owner/repo/number from it; sanity-check the owner against the remote.
+- **Repo + number:** combine with the remote's owner. A value containing `/` is already a full `owner/repo` slug.
+- **Number only:** use the current repo.
+- **Nothing:** ask which repo, then list open PRs with `gh pr list --repo <owner>/<repo> --state open --json number,title,headRefName,author` and ask which one.
+- **Not in a git repo:** ask for the full `owner/repo`.
 
-If the current directory is not a git repo, ask the user for the full `owner/repo` slug.
-
-### If a URL was provided
-
-Parse the owner, repo, and PR number from the URL and skip to Step 2. Prefer the owner from the URL, but sanity-check it against the remote.
-
-### If a repo name and PR number were provided
-
-Resolve the owner as above, combine it with the repo name, and skip to Step 2. A value already containing a `/` is a literal `owner/repo` slug — use it as-is.
-
-### If only a PR number was provided
-
-Resolve both owner and repo from the current directory's remote, and skip to Step 2.
-
-### If nothing was provided
-
-Ask the user: **"Which repo? (otterfin / otterfin-cloud / wendways / …)"**, resolve the owner as above, then list open pull requests:
-
-```bash
-gh pr list --repo <owner>/<repo> --state open --json number,title,headRefName,author
-```
-
-A connected GitHub MCP server's `list_pull_requests` tool (`owner`, `repo`, `state: "open"`) returns the same list. Call it by the name this session exposes — Claude Code prefixes it `mcp__plugin_github_github__list_pull_requests`; do not use that prefix unless that exact tool is present. If neither `gh` nor the MCP server is available, say so and stop.
-
-Display a numbered list:
-
-```
-Open PRs in OtterFin-ai/otterfin:
-  1. #42 — Fix auth token expiry (fix/of-123-auth-token-expiry) — opened by alice
-  2. #38 — Add bulk export endpoint (feature/of-119-bulk-export) — opened by bob
-```
-
-Ask: **"Which PR? (enter a number)"** and resolve the selection to an owner/repo/number.
-
----
+Use `gh` for GitHub calls. A connected GitHub MCP server's tools (`list_pull_requests`, `pull_request_read`) work too; call them by whatever name this session exposes. If neither is available, say so and stop.
 
 ## Step 2 — Fetch PR details
 
@@ -71,182 +40,110 @@ Ask: **"Which PR? (enter a number)"** and resolve the selection to an owner/repo
 gh pr view <number> --repo <owner>/<repo> --json title,body,author,headRefName,baseRefName,files,url
 ```
 
-The GitHub MCP tool `pull_request_read` (`owner`, `repo`, `pullNumber`) is equivalent, under whatever name this session gives it.
+## Step 3 — Get the code
 
-Note the head branch name, base branch, title, body, author, and file count.
+Record the current branch first (`git branch --show-current`) so `/submit-pr-review` can return to it later.
 
----
+### Default: check out in place
 
-## Step 3 — Check out the branch (with confirmation)
-
-Run `git status` to check for unstaged or uncommitted changes in the current working directory.
-
-If there are any changes, warn the user:
-
-> "Your working tree has uncommitted changes. Checking out the PR branch may fail or hide them. Continue anyway? (y/n)"
-
-If the user says no, stop here.
-
-Otherwise, fetch and check out the branch:
+If `git status --short` shows uncommitted changes, tell the user and ask whether to continue. Then:
 
 ```bash
-git fetch origin
-git checkout <head-branch>
-git pull origin <head-branch>
+gh pr checkout <number> --repo <owner>/<repo>
 ```
 
-If checkout fails (e.g. local branch conflicts), report the error and stop — do not force anything.
+If checkout fails, report the error and stop. Don't force anything.
 
----
+### Only when asked: separate worktree
 
-## Step 4 — Detect the tech stack
+Build a worktree from the PR's head ref so the current checkout is untouched. Don't use `gh pr checkout` here, because it switches the current tree's branch:
 
-Determine the stack from the repo name and repo contents:
+```bash
+git fetch origin pull/<number>/head:pr-<number>   # add --force if pr-<number> already exists
+git worktree add ../<repo>-pr-<number> pr-<number>
+```
 
-| Repo | Primary stack |
-|------|--------------|
-| `otterfin` | Next.js 16 App Router · React 19 · TypeScript (strict) · Tailwind + shadcn/ui · Prisma + PostgreSQL · Auth.js (NextAuth v5) · Zod · Vitest + Playwright · pnpm/turbo monorepo |
-| `otterfin-cloud` | Same stack, private premium layer over the `otterfin` submodule · Vercel + Supabase · versions as `X.Y.Z-cloud.N` |
-| `wendways` | Next.js 16 App Router · React 19 · TypeScript (strict) · Tailwind + shadcn/ui · tRPC 11 + TanStack Query · Prisma + PostgreSQL · Better Auth · MapLibre + ECharts · Vitest + Playwright · Capacitor (iOS/Android) · single app, `src/` not a monorepo |
+Check that `git branch --show-current` still returns the recorded branch. If it doesn't, stop and tell the user. Run every later git or file command against the worktree path (`git -C ../<repo>-pr-<number> …`).
 
-**OtterFin specifics** (a pnpm + turbo monorepo — `apps/community`, `packages/{auth,core,db,ui}`, `plugins/`):
+A fresh worktree has no `node_modules`, no database, and (for `otterfin-cloud`) an empty `otterfin` submodule until you run `git -C <path> submodule update --init --recursive`. The review reads code, so installing is rarely needed. If a finding needs the test suite, say so.
 
-- **Multi-tenancy is the headline concern.** Every tenant table has `household_id`; every query must scope by it explicitly and derive the household from the authenticated session, never from client input. Treat a missing `householdId` scope (resource lookup by ID alone → IDOR) as a blocking issue. Isolation tests live in `tests/isolation/` and **must always pass**.
-- **Money** is stored as integers in the smallest currency unit (cents) — flag any float arithmetic on amounts.
-- **No vendor coupling** — `@supabase/supabase-js` and `@vercel/*` must not appear in application code. All DB access via Prisma, all auth via Auth.js.
-- **Migrations** — `prisma db push` is forbidden (causes schema drift); changes go through `prisma migrate dev` / `make db-migrate`. See the Database Migrations section below.
-- **No PII in logs** — never log amounts, descriptions, account names, or emails; only `household_id`, `user_id`, action, timestamp.
-- **Zod** validation required on every external input (API routes, Server Actions, forms, imports).
-- **UI** — shadcn/ui + Tailwind only (no CSS-in-JS, no alternative UI libs); every component needs `dark:` variants from the start.
-- **Entitlements/billing** — this OSS repo must not contain billing, plan definitions, trial logic, or premium feature flags.
+## Step 4 — Load the project's rules
 
-**Wendways specifics** (single Next.js app — `src/{app,server,core,db,ui}`):
+Read `AGENTS.md` / `CLAUDE.md` at the repo root. Where it disagrees with this skill, it wins. These are the project rules that matter most in review:
 
-- **Multi-tenancy is per `userId`.** Every user-owned table has `user_id` and every query must include it, derived from the session. A lookup by id alone is a blocking IDOR. Isolation tests live in `src/tests/isolation/` and **must always pass**.
-- **`src/core` must stay framework-agnostic** — zero React/Next imports, so the future package extraction stays a folder move. Flag any React/Next import that lands there.
-- **No vendor coupling** — no `@vercel/*`, no Render-specific or Supabase data clients. DB via Prisma and a standard `DATABASE_URL`; storage via the S3-compatible adapter; email via the email adapter.
-- **Migrations** — `prisma db push` is forbidden; use `prisma migrate dev` and review the generated file in the PR.
-- **Reference data** (airports, airlines, cities) is keyed by the source's stable id, **never** by IATA code, and nothing is filtered out (closed airports, defunct airlines, `scheduled_service = no` all stay). Removed entries are marked retired, never hard-deleted.
-- **Distance** is great-circle, computed per segment in `src/core`, user-overridable; missing coordinates mean blank, never a guess.
-- **Times** are stored UTC plus the relevant IANA timezone — flag anything that assumes the server timezone.
-- **No PII in logs** — trip details, place names, locations, and emails are all sensitive; log `user_id`, action, timestamp only.
-- **No copyright/license headers** (closed-source commercial), unlike OtterFin which requires an AGPLv3 header on first-party files.
+**OtterFin** (`otterfin`, `otterfin-cloud` — pnpm/turbo monorepo: `apps/community`, `packages/{auth,core,db,ui}`, `plugins/`)
+- Every tenant query is scoped by `household_id` taken from the session, never from client input. A lookup by ID alone is a blocking IDOR. `tests/isolation/` must pass.
+- Money is integer cents. Flag float math on amounts.
+- No `@supabase/supabase-js` or `@vercel/*` in app code. DB via Prisma, auth via Auth.js.
+- Zod on every external input. shadcn/ui + Tailwind only, with `dark:` variants from the start.
+- No PII in logs (amounts, descriptions, account names, emails). Log only IDs, action, and timestamp.
+- The OSS repo holds no billing, plans, trials, or premium flags. First-party files carry the AGPLv3 header.
+- `otterfin-cloud` is the private premium layer over the `otterfin` submodule (Vercel + Supabase, versions `X.Y.Z-cloud.N`).
 
-Also read `CLAUDE.md` (and `AGENTS.md`) at the repo root — they contain the authoritative tech stack, architecture rules, security rules, and conventions that override the defaults in this skill.
+**Wendways** (single Next.js app — `src/{app,server,core,db,ui}`, tRPC + Better Auth + Capacitor)
+- Every user-owned query is scoped by `user_id` from the session. A lookup by ID alone is a blocking IDOR. `src/tests/isolation/` must pass.
+- `src/core` stays framework-agnostic: no React or Next imports.
+- No `@vercel/*`, Render-specific, or Supabase data clients. Storage and email go through their adapters.
+- Reference data is keyed by the source's stable ID, never IATA. Nothing is filtered out; removed rows are marked retired, never deleted.
+- Distance is great-circle per segment in `src/core`. Missing coordinates mean blank, never a guess.
+- Times are stored in UTC plus an IANA zone. Flag anything that assumes the server's timezone.
+- No PII in logs (trips, places, locations, emails). No license headers.
 
----
+**Both:** `prisma db push` is forbidden. Never edit an already-committed migration; add a new one. If a PR edits an existing migration and its linked issue doesn't explicitly authorize that, it's blocking. Ask the user if unsure.
 
-## Step 5 — Review the PR
+## Step 5 — Review
 
-Read the changed files from `gh pr diff <number> --repo <owner>/<repo>` (or the GitHub MCP) and from the checked-out local copy as needed. Then produce a structured review under the following sections. Be direct and opinionated — flag real problems, not hypotheticals.
+Read the diff (`gh pr diff <number> --repo <owner>/<repo>`) and the surrounding code. Cover security, correctness, tests, performance, migrations, conventions, and PR hygiene (description explains *why*, changelog entry for user-visible changes, no leftover TODOs). Flag real problems, not hypotheticals.
 
-**Only Summary and Verdict are required. Omit every section with no findings** — do not emit a heading followed by "no issues found", "N/A", or a restatement of what you checked. The sections below are a checklist for *you*, not a template for the output; a small PR should routinely produce a review with two or three headings.
+## Step 6 — Write the review
 
-Write each finding as: what is wrong · where (`file:line`) · why it matters · the fix. Skip preamble, skip praise for code that is merely correct, and skip a closing paragraph that summarizes the findings you just listed.
+Use this shape. Omit any section with nothing in it. Don't add empty headings, praise for code that's merely correct, or a closing recap.
 
----
+```markdown
+## TL;DR
+<Verdict: Approve / Approve with suggestions / Request changes.> <One or two plain-English
+sentences: what this PR does, whether it's safe to merge, and what the author needs to do.
+No file names, function names, or jargon here.>
 
-### Summary
+## Must fix
+- 🔴 **<short title>** · `path/to/file.ts:123`
+  <what's wrong> — <why it matters> — <the fix>
 
-One short paragraph: what the PR does and whether the overall approach makes sense.
+## Should fix
+- 🟡 **<short title>** · `path:line` (or "general")
+  <what's wrong> — <why it matters> — <the fix>
 
----
+## Nits
+- Nit: <…> · `path:line`
 
-### Security
+## Notes
+<Anything else a reviewer needs: approach concerns, what you verified, tests you couldn't run.>
+```
 
-Flag any of the following if present:
+Use the 🔴 / 🟡 / Nit tags and `path:line` anchors exactly as shown, because `/submit-pr-review` reads them.
 
-**Secrets & code execution**
-- Secrets, tokens, or credentials committed to source (everything belongs in env config)
-- Unsafe use of `eval`, dynamic `import()` of user input, or other dynamic code execution
-- Hard-coded secrets or API keys, especially anything reaching client-side code
+## Step 7 — Prior feedback (re-reviews only)
 
-**Authentication & authorization**
-- Missing or bypassable authentication / authorization checks
-- Logic that processes a request before verifying auth
-- Insecure direct object references (IDOR) — looking up a resource by ID alone without scoping to the authenticated user/owner
-- Trusting client-supplied identity or tenant scope instead of deriving it from the session
-- In a multi-tenant codebase, any query that omits the tenant scope (treat as blocking)
+Skip this unless the PR has an earlier "changes requested" review or unresolved threads (`gh pr view <number> --repo <owner>/<repo> --json reviews`). If it does, judge each prior item on whether the concern is actually fixed, not just whether nearby code changed. Show a checklist:
 
-**Input validation & requests**
-- External input (API routes, form handlers, imports, query params) not validated/sanitized
-- State-mutating endpoints without CSRF protection
-- Unvalidated redirects or open redirects
-- User-controlled data used in file paths, shell commands, or SQL without sanitization
+```
+Prior feedback:
+  1. [addressed]     "Scope the lookup by householdId" — lib/actions/transaction.ts:212
+  2. [not addressed] "Add a test for the expired-token path" — no new test found
+```
 
-**Data handling**
-- Raw SQL with string interpolation instead of parameterized queries
-- Sensitive data or PII written to logs
-- Server-only data leaked to the client (over-broad API responses, server→client prop boundaries)
-- Rendering unsanitized content as HTML (XSS, e.g. `dangerouslySetInnerHTML`)
+If every item is addressed, offer to resolve those threads on GitHub. Resolving is GraphQL-only:
 
----
+```bash
+gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{id isResolved comments(first:1){nodes{body path line}}}}}}}' -F o=<owner> -F r=<repo> -F n=<number>
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=<thread-id>
+```
 
-### Tests
+Resolve only threads the user confirms. List any unaddressed items under "Must fix".
 
-- Are tests included for new or changed behavior?
-- Do the tests cover the happy path and meaningful edge cases?
-- Are there any tests that appear to pass trivially without actually verifying behavior?
-- Is the right level of test used — unit for pure logic, integration for endpoints/DB access, E2E for critical user flows?
-- Are server-side endpoints, DB operations, and UI components/hooks covered with the project's standard test tooling?
+## Step 8 — Leave the environment
 
-If tests are absent for non-trivial logic, call it out clearly.
+If `/submit-pr-review` comes next, leave everything as it is, because that skill handles cleanup. Otherwise:
 
----
-
-### Performance
-
-**Backend / data access**
-- N+1 query patterns (missing eager-loading / batching)
-- Unindexed fields used in filters or sorts on large tables
-- Expensive operations (file I/O, network calls, heavy computation) running synchronously in a request/response cycle without a task queue
-- Queries or serializers fetching more data than the response needs
-
-**Frontend / React**
-- Missing `useMemo` / `useCallback` around expensive or frequently re-created values passed as props
-- Unnecessary full-page or large-component re-renders
-- Large dependencies added without checking bundle impact
-- Unoptimized images (e.g. not using the framework's image component)
-- Work done on every request that could be cached or moved to build time
-
----
-
-### Database Migrations
-
-**Never modify an existing migration — always add a new one.** Editing a migration that has already been committed (changing its operations, SQL, or dependencies) rewrites history that other environments may have already applied, and is a defect by default.
-
-If the PR modifies an existing migration file rather than adding a new one, confirm the PR's linked issue **explicitly authorizes** rewriting that migration. If it does not, or you are unsure, **stop and ask the user to confirm** before passing this section. Treat an unauthorized edit to an existing migration as a blocking issue.
-
----
-
-### Conventions & Code Quality
-
-- Does the code follow patterns already established in this repo?
-- Are there violations of the rules in `CLAUDE.md` (if found)?
-- Naming: are variables, functions, and components named clearly and consistently?
-- Are there any copy-paste blocks that should be extracted?
-- Dead code, unused imports, or leftover debug statements?
-- Idiomatic use of the language and framework, and adherence to the project's lint/style rules?
-- For React/Next.js: consistent component structure, `use client` / `use server` boundaries correct?
-
----
-
-### Changelog & PR Hygiene
-
-- Does the PR description explain the *why*, not just the *what*?
-- Is there a changelog entry or release note if this is a user-facing change?
-- Are there any TODO/FIXME comments left that should be resolved before merge?
-
----
-
-## Step 6 — Verdict
-
-End with one of three verdicts and a brief rationale:
-
-| Verdict | Meaning |
-|---------|---------|
-| **Approve** | Ready to merge with no required changes |
-| **Approve with suggestions** | Safe to merge; suggestions are non-blocking improvements |
-| **Request changes** | One or more issues must be addressed before merge |
-
-List any blocking issues clearly under the verdict.
+- **In place:** leave the PR branch checked out (the user usually wants to test it) and remind them which branch they were on before.
+- **Worktree:** offer to remove it (`git worktree remove ../<repo>-pr-<number>` then `git branch -D pr-<number>`). If removal refuses because of leftover changes, show them and let the user choose between `--force` and keeping it.

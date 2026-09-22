@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Every skill's output now opens with a plain-English TL;DR, so the result and next step come before the technical detail. This covers chat reports, PR descriptions, review bodies, changelog entries, and Linear issues a skill creates
+- `/review-pr` now covers both review modes: by default it checks the branch out in your working tree for local testing, and it uses a separate worktree only when you ask for one. `/review-pr-wt` is removed. The review output uses 🔴 / 🟡 / Nit tags and `path:line` anchors, which `/submit-pr-review` reads directly
+- Skills are trimmed for current models: generic review checklists, repeated tool-prefix boilerplate, filler steps, and all-caps emphasis are gone, and the project-specific rules and guardrails stay
+- `/commit`, `/raise-pr`, and `/submit-pr-review` state that they run only on explicit request. This is written in the skill text rather than in Claude Code-only frontmatter, so the skills still upload to claude.ai
+- `CLAUDE.md` now imports `AGENTS.md` with `@AGENTS.md`, so Claude Code loads it automatically. The install steps no longer create `~/.claude/commands/` symlinks, because skills are already slash commands
 - Each skill is now a directory with `SKILL.md` (`skills/<name>/SKILL.md`) so the same files can be symlinked into Cursor and Claude Code skill directories
 - Skill steps no longer call Claude Code tool ids. MCP steps use the server's own tool name (`get_issue`, `create_pull_request`) and tell the agent to discover how this session prefixes it. GitHub steps also have a `gh` path. `/validate-fe` drives whichever browser tools the session has, and `/humanize` no longer reads `$ARGUMENTS`
 - Repo instructions now live in `AGENTS.md`. `CLAUDE.md` is a stub that points there
@@ -26,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- `/validate-fe` diffed against a hardcoded `origin/main`. It now looks up the repo's default branch
 - `/start-issue` called four Linear MCP tools that no longer exist (`update_issue`, `get_viewer`, `get_workflow_states`, `get_labels`). It now uses `save_issue` with `assignee: "me"` and a status name, which also removes two lookup round-trips
 - `/start-issue` branched off a base-branch table inherited from the work repos (`dmp`/`admin` → `dev`, `altpe` → `develop`, defaulting to `dev`). It now resolves the default branch from `origin/HEAD` — `main` in every personal repo — and its label→prefix map handles both `Bug`/`Feature` and namespaced `type:*` labels
 - `/raise-pr` hardcoded `dev` as the PR base, contradicting its own description. It now targets the resolved default branch, and its changelog gate checks the root `CHANGELOG.md` instead of the `changelogs/` fragments these repos do not use

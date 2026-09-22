@@ -28,7 +28,7 @@ Discover the browser tools in this session and read each tool's schema before ca
 | Run JavaScript | `javascript_tool` | the session's page-evaluate tool, if it has one |
 | Screenshot | `computer` (screenshot) | `browser_take_screenshot` |
 
-If this session has a browser skill (Claude Code's `claude-in-chrome` is one), read it before the first browser call. Claude Code may also defer those tools behind one `ToolSearch` load and prefix them `mcp__claude-in-chrome__…`. Use that prefix only when those exact tools are listed. Another harness will not have it.
+If this session has a browser skill (such as `claude-in-chrome`), read it before the first browser call. Call tools by whatever names this session exposes.
 
 See which tabs are already open, then work in a **new tab** unless the user asks you to use one of theirs. Never reuse a tab id from an earlier session.
 
@@ -73,8 +73,9 @@ Both apps need PostgreSQL. If the server starts but pages 500 on data, check `do
 ## Step 3 — Establish context (issue-specific mode)
 
 ```bash
+base=$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's|^origin/||')
 git rev-parse --abbrev-ref HEAD
-git diff --stat $(git merge-base HEAD origin/main)..HEAD
+git diff --stat $(git merge-base HEAD origin/$base)..HEAD
 ```
 
 Pull the Linear id (`WW-…` / `OF-…`) from the branch name and read the issue if you need the acceptance criteria. Map changed files to routes:
@@ -133,24 +134,26 @@ Screenshot both. Unreadable contrast, an invisible border, or a stray light-mode
 
 ## Step 6 — Report
 
+Lead with the verdict in plain English, followed by the evidence:
+
 ```
-## Validation Results
+## TL;DR
+✅ <What works, in one or two plain sentences — e.g. "The new filter works on the Transactions
+page in both light and dark mode, with no errors.">
+or
+⚠️ <What's broken and what you need to do — e.g. "The dialog opens but Save does nothing;
+the fix isn't working yet.">
 
-**Mode:** <mode>
-**Routes checked:** <list>
-
-### Console
-<errors and warnings found, or "clean">
-
-### Rendering
-<what the screenshots show, light and dark>
+**Mode:** <mode> · **Routes checked:** <list> · **Skipped:** <route — reason>
 
 ### Behavior
-<what was asserted, and what the page actually did>
+<What was asserted, and what the page actually did>
 
-### Verdict
-✅ Confirmed — <what specifically was verified>
-⚠️ Issues found — <what broke, where, and how to reproduce>
+### Rendering
+<What the screenshots show, light and dark>
+
+### Console
+<Errors and warnings, or "clean">
 ```
 
-Say what you actually checked, not what the mode was supposed to cover. If a route was skipped because the server or database was down, list it as skipped rather than passing it.
+Report what you actually checked, not what the mode was supposed to cover. If a route was skipped because the server or database was down, list it as skipped; don't count it as passing.

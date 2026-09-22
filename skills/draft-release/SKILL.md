@@ -5,7 +5,7 @@ description: Draft public-facing release notes for an OtterFin version — reads
 
 # Draft Release Notes
 
-Turn a released version into notes a **self-hoster** can read. The `CHANGELOG.md` entries in these repos are deliberately dense and engineer-facing — migration names, function names, row counts. That is the right register for the changelog and the wrong one for an announcement, so this skill translates rather than copies.
+Turn a released version into notes a **self-hoster** can read. Each `CHANGELOG.md` entry opens with a plain-English sentence, followed by engineer-facing detail (migration names, function names, row counts). The opening sentences are a starting point. The detail is the wrong register for an announcement, so this skill translates rather than copies.
 
 **This skill does not cut a release.** Version bumping, the changelog rollover, the commit and the tag belong to the repo's own release command (`.claude/commands/release.md` in `otterfin` and `otterfin-cloud`). Run that first; run this after, against a version that already exists.
 
@@ -52,9 +52,9 @@ For `unreleased`, read the `## [Unreleased]` section instead.
 git log --oneline v0.7.0..v0.8.0
 ```
 
-**The issues behind it.** Extract every `OF-\d+` (or `WW-\d+`) referenced in the section and the commits, then read each for the user-facing intent. Call the connected Linear MCP server's `get_issue` with `{ "id": "OF-87" }`. Discover that tool in this session — Claude Code names it `mcp__claude_ai_Linear__get_issue`; other harnesses do not. Do not paste a prefixed name unless that exact tool is present. If no Linear server is connected, skip issue enrichment and say so; the changelog is enough to draft from.
+**The issues behind it.** Extract every `OF-\d+` (or `WW-\d+`) referenced in the section and the commits, and read each one with the Linear MCP server's `get_issue` (called by whatever name this session exposes) for the user-facing intent. If no Linear server is connected, skip this and say so. The changelog is enough to draft from.
 
-If that server's `list_releases` with `{ "version": "<version>" }` returns a match, the workspace tracks this release natively and `list_issues` with `{ "release": "<id-or-slug>" }` gives the full set. It returns nothing today — treat the changelog as the authority and Linear as enrichment, not the reverse.
+If `list_releases { "version": "<version>" }` finds a match, `list_issues { "release": "<id>" }` gives the full set. Either way, the changelog is the authority and Linear only fills in context.
 
 ---
 
@@ -106,9 +106,11 @@ Then read it back once as if you were a self-hoster deciding whether to upgrade.
 
 ### Release body
 
-Shorter and more literal than the post — the reader is looking at the tag:
+Shorter and more literal than the post, because the reader is looking at the tag. Open with a plain-English TL;DR:
 
 ```markdown
+**TL;DR:** <One or two sentences: what this release means for someone running it, and any action they must take to upgrade.>
+
 ## Security
 - Enabled row-level security on the household root tables. Existing installs pick this up on the next `docker compose pull && up -d`.
 
@@ -127,4 +129,4 @@ Keep the changelog's own category names, one sentence per bullet, no internal id
 
 ## Step 5 — Confirm
 
-Report the path written, the version and date, how many changelog entries became how many sections, and anything you deliberately left out. Do not commit, push, or publish — say the post is ready for review in `oss-website` and leave the decision to the user.
+Start with one plain sentence on what's ready and where, e.g. "The 0.8.0 Updates post is drafted in `oss-website` and ready for your review." Then give the path, version and date, how many changelog entries became how many sections, and anything you deliberately left out. Do not commit, push, or publish — say the post is ready for review in `oss-website` and leave the decision to the user.
